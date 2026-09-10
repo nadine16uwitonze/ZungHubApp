@@ -1,0 +1,66 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userRole() {
+      return signedIn()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+
+    function isGovernment() {
+      return userRole() == 'government';
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isGovernment());
+      allow create: if signedIn() && request.auth.uid == userId
+        && request.resource.data.role in ['vendor', 'customer'];
+      allow update: if signedIn() && request.auth.uid == userId
+        && request.resource.data.role == resource.data.role;
+    }
+
+    match /vendors/{vendorId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.auth.uid == request.resource.data.userId
+        && userRole() == 'vendor';
+      allow delete: if false;
+    }
+
+    match /products/{productId} {
+      // Product discovery is public; creating and managing products remains restricted.
+      allow read: if true;
+      allow create: if signedIn()
+        && userRole() == 'vendor'
+        && request.resource.data.vendorId == request.auth.uid;
+      allow update, delete: if signedIn()
+        && userRole() == 'vendor'
+        && resource.data.vendorId == request.auth.uid
+        && request.resource.data.vendorId == resource.data.vendorId;
+    }
+
+    match /regulations/{regulationId} {
+      allow read: if signedIn();
+      allow write: if isGovernment();
+    }
+
+    match /permits/{permitId} {
+      allow read: if signedIn() && (isGovernment() || resource.data.vendorId == request.auth.uid);
+      allow create: if signedIn() && userRole() == 'vendor'
+        && request.resource.data.vendorId == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if isGovernment();
+      allow delete: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if signedIn();
+      allow write: if isGovernment();
+    }
+  }
+}
