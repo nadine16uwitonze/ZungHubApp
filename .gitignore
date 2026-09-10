@@ -9,3 +9,13 @@ build/
 .vscode/
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
+
+# Local environment and generated development files
+.env
+.env.*
+!.env.example
+.firebase/
+coverage/
+*.log
+tmp/
+temp/
