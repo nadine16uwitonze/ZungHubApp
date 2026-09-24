@@ -22,34 +22,27 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
   AuthController(this._repository) : super(const AsyncData(null));
 
   final AuthRepository _repository;
-  String? verificationId;
 
-  Future<void> sendCode(String phoneNumber) async {
+  Future<void> createAccount({
+    required String email,
+    required String password,
+  }) async {
     state = const AsyncLoading();
     try {
-      await _repository.sendCode(
-        phoneNumber: phoneNumber,
-        onCodeSent: (id) => verificationId = id,
-        onError: (error) => throw error,
-      );
+      await _repository.createAccount(email: email, password: password);
       state = const AsyncData(null);
     } catch (error, stackTrace) {
       state = AsyncError(error, stackTrace);
     }
   }
 
-  Future<void> verifyCode(String code) async {
-    final id = verificationId;
-    if (id == null) {
-      state = AsyncError(
-        StateError('Request a verification code first.'),
-        StackTrace.current,
-      );
-      return;
-    }
+  Future<void> login({
+    required String email,
+    required String password,
+  }) async {
     state = const AsyncLoading();
     try {
-      await _repository.verifyCode(verificationId: id, smsCode: code);
+      await _repository.login(email: email, password: password);
       state = const AsyncData(null);
     } catch (error, stackTrace) {
       state = AsyncError(error, stackTrace);
@@ -69,5 +62,5 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
 
 final authControllerProvider =
     StateNotifierProvider<AuthController, AsyncValue<void>>((ref) {
-      return AuthController(ref.watch(authRepositoryProvider));
-    });
+  return AuthController(ref.watch(authRepositoryProvider));
+});

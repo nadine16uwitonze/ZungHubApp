@@ -17,25 +17,25 @@ final productRepositoryProvider = Provider<ProductRepository>((ref) {
 
 class ProductUploadState {
   const ProductUploadState({
-    this.image,
+    this.images = const [],
     this.isSubmitting = false,
     this.error,
     this.completed = false,
   });
 
-  final XFile? image;
+  final List<XFile> images;
   final bool isSubmitting;
   final Object? error;
   final bool completed;
 
   ProductUploadState copyWith({
-    XFile? image,
+    List<XFile>? images,
     bool? isSubmitting,
     Object? error,
     bool? completed,
   }) {
     return ProductUploadState(
-      image: image ?? this.image,
+      images: images ?? this.images,
       isSubmitting: isSubmitting ?? this.isSubmitting,
       error: error,
       completed: completed ?? this.completed,
@@ -48,13 +48,15 @@ class ProductUploadController extends StateNotifier<ProductUploadState> {
 
   final ProductRepository _repository;
 
-  void selectImage(XFile image) =>
-      state = state.copyWith(image: image, error: null);
+  void selectImages(List<XFile> images) =>
+      state = state.copyWith(images: images, error: null);
 
   Future<void> submit({
     required String name,
     required String category,
     required String price,
+    required String description,
+    required int stockQuantity,
   }) async {
     state = state.copyWith(isSubmitting: true, error: null, completed: false);
     try {
@@ -65,6 +67,9 @@ class ProductUploadController extends StateNotifier<ProductUploadState> {
       }
       if (normalizedPrice == null || normalizedPrice <= 0) {
         throw const FormatException('Enter a valid price greater than zero.');
+      }
+      if (stockQuantity < 0) {
+        throw const FormatException('Stock quantity cannot be negative.');
       }
       final permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied ||
@@ -77,11 +82,17 @@ class ProductUploadController extends StateNotifier<ProductUploadState> {
       await _repository.createProduct(
         name: name,
         category: category,
+        description: description,
         price: normalizedPrice,
-        image: state.image,
+        stockQuantity: stockQuantity,
+        images: state.images,
         location: GeoPoint(position.latitude, position.longitude),
       );
-      state = state.copyWith(isSubmitting: false, completed: true);
+      state = state.copyWith(
+        isSubmitting: false,
+        completed: true,
+        images: const [],
+      );
     } catch (error) {
       state = state.copyWith(isSubmitting: false, error: error);
     }

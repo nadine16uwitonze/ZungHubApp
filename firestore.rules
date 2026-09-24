@@ -18,30 +18,39 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if signedIn() && (request.auth.uid == userId || isGovernment());
-      allow create: if signedIn() && request.auth.uid == userId
-        && request.resource.data.role in ['vendor', 'customer'];
-      allow update: if signedIn() && request.auth.uid == userId
-        && request.resource.data.role == resource.data.role;
+      allow create: if signedIn() && request.auth.uid == userId && request.resource.data.role in ['vendor', 'customer', 'government'];
+      allow update: if signedIn() && request.auth.uid == userId;
     }
 
     match /vendors/{vendorId} {
       allow read: if signedIn();
-      allow create, update: if signedIn()
-        && request.auth.uid == request.resource.data.userId
-        && userRole() == 'vendor';
+      allow create, update: if signedIn() && request.auth.uid == request.resource.data.userId && userRole() == 'vendor';
       allow delete: if false;
     }
 
     match /products/{productId} {
-      // Product discovery is public; creating and managing products remains restricted.
       allow read: if true;
+      allow create: if signedIn() && userRole() == 'vendor' && request.resource.data.vendorId == request.auth.uid;
+      allow update, delete: if signedIn() && userRole() == 'vendor' && resource.data.vendorId == request.auth.uid && request.resource.data.vendorId == request.auth.uid;
+    }
+
+    match /orders/{orderId} {
       allow create: if signedIn()
-        && userRole() == 'vendor'
-        && request.resource.data.vendorId == request.auth.uid;
-      allow update, delete: if signedIn()
-        && userRole() == 'vendor'
-        && resource.data.vendorId == request.auth.uid
-        && request.resource.data.vendorId == resource.data.vendorId;
+        && request.resource.data.customerId == request.auth.uid
+        && request.resource.data.vendorId is string
+        && request.resource.data.status in ['Pending', 'Accepted', 'Preparing', 'Ready', 'Completed', 'Cancelled'];
+
+      allow read: if signedIn() && (
+        resource.data.customerId == request.auth.uid ||
+        resource.data.vendorId == request.auth.uid
+      );
+
+      allow update: if signedIn() && (
+        (resource.data.customerId == request.auth.uid && request.resource.data.customerId == request.auth.uid) ||
+        (resource.data.vendorId == request.auth.uid && request.resource.data.vendorId == request.auth.uid)
+      );
+
+      allow delete: if false;
     }
 
     match /regulations/{regulationId} {
@@ -51,9 +60,7 @@ service cloud.firestore {
 
     match /permits/{permitId} {
       allow read: if signedIn() && (isGovernment() || resource.data.vendorId == request.auth.uid);
-      allow create: if signedIn() && userRole() == 'vendor'
-        && request.resource.data.vendorId == request.auth.uid
-        && request.resource.data.status == 'pending';
+      allow create: if signedIn() && userRole() == 'vendor' && request.resource.data.vendorId == request.auth.uid && request.resource.data.status == 'pending';
       allow update: if isGovernment();
       allow delete: if false;
     }

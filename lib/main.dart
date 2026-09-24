@@ -8,34 +8,52 @@ import 'routes/app_router.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   Object? startupError;
+  StackTrace? startupStackTrace;
+
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-  } catch (error) {
+  } catch (error, stackTrace) {
     startupError = error;
+    startupStackTrace = stackTrace;
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'ZungHub startup',
+        context: ErrorDescription('Firebase initialization failed.'),
+      ),
+    );
   }
+
   runApp(
     ProviderScope(
       child: startupError == null
           ? const ZungHubApp()
-          : StartupErrorApp(error: startupError),
+          : StartupErrorApp(error: startupError, stackTrace: startupStackTrace),
     ),
   );
 }
 
 class StartupErrorApp extends StatelessWidget {
-  const StartupErrorApp({required this.error, super.key});
+  const StartupErrorApp({
+    required this.error,
+    this.stackTrace,
+    super.key,
+  });
 
   final Object error;
+  final StackTrace? stackTrace;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'ZungHub setup',
       theme: ThemeData(
-          colorScheme:
-              ColorScheme.fromSeed(seedColor: const Color(0xff126B5B))),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff126B5B)),
+        useMaterial3: true,
+      ),
       home: Scaffold(
         body: Center(
           child: ConstrainedBox(
@@ -48,13 +66,19 @@ class StartupErrorApp extends StatelessWidget {
                 children: [
                   const Icon(Icons.settings_rounded, size: 56),
                   const SizedBox(height: 16),
-                  Text('ZungHub needs Firebase configuration',
-                      style: Theme.of(context).textTheme.headlineSmall),
+                  Text(
+                    'ZungHub needs Firebase configuration',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
                   const SizedBox(height: 12),
                   const Text(
-                      'Run flutterfire configure in the project folder, then restart the app.'),
+                    'Run flutterfire configure in the project folder, then restart the app.',
+                  ),
                   const SizedBox(height: 16),
-                  SelectableText(error.toString()),
+                  const Text(
+                    'Check your Firebase project and app configuration, then restart the app.',
+                    textAlign: TextAlign.center,
+                  ),
                 ],
               ),
             ),

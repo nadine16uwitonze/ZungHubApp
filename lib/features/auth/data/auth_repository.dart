@@ -11,31 +11,24 @@ class AuthRepository {
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  Future<void> sendCode({
-    required String phoneNumber,
-    required void Function(String verificationId) onCodeSent,
-    required void Function(FirebaseAuthException error) onError,
-  }) {
-    return _auth.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      verificationCompleted: (credential) async {
-        await _auth.signInWithCredential(credential);
-      },
-      verificationFailed: onError,
-      codeSent: (verificationId, _) => onCodeSent(verificationId),
-      codeAutoRetrievalTimeout: onCodeSent,
+  Future<void> createAccount({
+    required String email,
+    required String password,
+  }) async {
+    await _auth.createUserWithEmailAndPassword(
+      email: email.trim(),
+      password: password,
     );
   }
 
-  Future<void> verifyCode({
-    required String verificationId,
-    required String smsCode,
+  Future<void> login({
+    required String email,
+    required String password,
   }) async {
-    final credential = PhoneAuthProvider.credential(
-      verificationId: verificationId,
-      smsCode: smsCode,
+    await _auth.signInWithEmailAndPassword(
+      email: email.trim(),
+      password: password,
     );
-    await _auth.signInWithCredential(credential);
   }
 
   Future<AppUser?> getCurrentProfile() async {

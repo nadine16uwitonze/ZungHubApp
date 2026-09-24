@@ -14,42 +14,96 @@ class ProductRepository {
   final FirebaseAuth _auth;
   final _uuid = const Uuid();
 
-  Future<String> uploadImage(XFile image, String productId) async {
+  Future<List<String>> uploadImages(
+      List<XFile> images, String productId) async {
     final userId = _auth.currentUser?.uid;
     if (userId == null) throw StateError('You must be signed in.');
-    final reference = _storage.ref('products/$userId/$productId.jpg');
-    await reference.putData(
-      await image.readAsBytes(),
-      SettableMetadata(contentType: 'image/jpeg'),
-    );
-    return reference.getDownloadURL();
+
+    final futures = images.asMap().entries.map((entry) async {
+      final index = entry.key;
+      final image = entry.value;
+      final fileName = '${productId}_$index.${image.name.split('.').last}';
+      final reference = _storage.ref('products/$userId/$fileName');
+      await reference.putData(
+        await image.readAsBytes(),
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+      return reference.getDownloadURL();
+    });
+
+    return Future.wait(futures);
+  }
+
+  Stream<List<Product>> vendorProducts(String vendorId) {
+    return _firestore
+        .collection('products')
+        .where('vendorId', isEqualTo: vendorId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => Product.fromFirestore(doc.id, doc.data()))
+            .toList());
+  }
+
+  Stream<List<Product>> allProducts() {
+    return _firestore
+        .collection('products')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => Product.fromFirestore(doc.id, doc.data()))
+            .toList());
+  }
+
+  Future<Product?> getProduct(String productId) async {
+    final snapshot =
+        await _firestore.collection('products').doc(productId).get();
+    if (!snapshot.exists) return null;
+    return Product.fromFirestore(snapshot.id, snapshot.data() ?? {});
   }
 
   Future<void> createProduct({
     required String name,
     required String category,
+    required String description,
     required double price,
-    required XFile? image,
+    required int stockQuantity,
+    required List<XFile> images,
     required GeoPoint location,
   }) async {
     final vendorId = _auth.currentUser?.uid;
     if (vendorId == null) throw StateError('You must be signed in.');
     final productId = _uuid.v4();
-    final imageUrl = image == null ? '' : await uploadImage(image, productId);
+    final uploadedImageUrls = images.isEmpty
+        ? const <String>[]
+        : await uploadImages(images, productId);
     final product = Product(
       id: productId,
       vendorId: vendorId,
       name: name.trim(),
       category: category,
       price: price,
-      imageUrl: imageUrl,
+      description: description.trim(),
+      stockQuantity: stockQuantity,
+      imageUrls: uploadedImageUrls,
       location: location,
-      stockStatus: 'in_stock',
+      stockStatus: stockQuantity > 0 ? 'in_stock' : 'out_of_stock',
       createdAt: DateTime.now(),
     );
     await _firestore
         .collection('products')
         .doc(productId)
         .set(product.toJson());
+  }
+
+  Future<void> updateProduct(Product product) async {
+    await _firestore
+        .collection('products')
+        .doc(product.id)
+        .update(product.toJson());
+  }
+
+  Future<void> deleteProduct(String productId) async {
+    await _firestore.collection('products').doc(productId).delete();
   }
 }
